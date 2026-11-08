@@ -90,7 +90,25 @@ def create_rate_limit(
     methods: str = "ALL",
     ignore_in_developer_mode: bool = True,
 ) -> RateLimit:
-    """Create a Rate Limit document"""
+    """Create a Rate Limit document, or return the one that already holds the same limit.
+
+    Install hooks call this for their default limits, and an install that failed after they ran
+    leaves those rows behind: creating them again would trip the `unique_rate_limit` index and
+    fail every retry. An existing row is returned as it is, so limits a System Manager has since
+    tuned are kept."""
+
+    if existing := frappe.db.get_value(
+        "Rate Limit",
+        {
+            "method_path": method_path,
+            # The unique index covers these columns; empty key/value are stored as NULL.
+            "key_": key or ["is", "not set"],
+            "value": value or ["is", "not set"],
+            "ip_based": cint(ip_based),
+            "seconds": seconds,
+        },
+    ):
+        return frappe.get_doc("Rate Limit", existing)
 
     doc = frappe.new_doc("Rate Limit")
     doc.enabled = 1
@@ -103,6 +121,7 @@ def create_rate_limit(
     doc.seconds = seconds
     doc.ip_based = cint(ip_based)
     doc.insert(ignore_permissions=True)
+    return doc
 
 
 def get_rate_limits(method_path: str) -> list:

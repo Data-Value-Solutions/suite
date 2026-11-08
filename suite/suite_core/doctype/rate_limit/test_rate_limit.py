@@ -114,6 +114,31 @@ class IntegrationTestRateLimit(IntegrationTestCase):
             else:
                 frappe.local.request = previous_request
 
+    def test_creating_an_existing_limit_again_keeps_one_row(self):
+        # An install retried after a failure runs the default limits a second time.
+        frappe.db.delete("Rate Limit", {"method_path": OUTER_PATH, "seconds": 3600})
+        create_rate_limit(method_path=OUTER_PATH, key="priority", value="Low", limit=10, seconds=3600)
+        create_rate_limit(method_path=OUTER_PATH, key="priority", value="Low", limit=10, seconds=3600)
+        create_rate_limit(method_path=OUTER_PATH, limit=10, seconds=3600)
+        create_rate_limit(method_path=OUTER_PATH, limit=10, seconds=3600)
+
+        rows = frappe.get_all(
+            "Rate Limit", filters={"method_path": OUTER_PATH, "seconds": 3600}, fields=["key_", "value"]
+        )
+        self.assertEqual(sorted((r.key_ or "", r.value or "") for r in rows), [("", ""), ("priority", "Low")])
+
+    def test_creating_an_existing_limit_again_keeps_a_tuned_value(self):
+        frappe.db.delete("Rate Limit", {"method_path": OUTER_PATH, "seconds": 3600})
+        doc = create_rate_limit(method_path=OUTER_PATH, limit=10, seconds=3600)
+        frappe.db.set_value("Rate Limit", doc.name, "limit", 25)
+
+        create_rate_limit(method_path=OUTER_PATH, limit=10, seconds=3600)
+
+        self.assertEqual(
+            frappe.get_all("Rate Limit", filters={"method_path": OUTER_PATH, "seconds": 3600}, pluck="limit"),
+            [25],
+        )
+
     @staticmethod
     def _counter_key(path: str, seconds: int = 60) -> bytes:
         # Mirrors the key frappe.rate_limiter.rate_limit builds for an IP-based limit.
