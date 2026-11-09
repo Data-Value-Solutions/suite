@@ -720,11 +720,9 @@ def _apply_startup_milestone(
     recording.recorder_event_sequence = sequence
     if milestone == "capture_started":
         recording.started_at = occurred_naive
-        recording.max_ends_at = (
-            (occurred + timedelta(seconds=MAX_SECONDS))
-            .astimezone(ZoneInfo(frappe.utils.get_system_timezone()))
-            .replace(tzinfo=None)
-        )
+        # max_ends_at stays as reserved: the recorder stores the reserved limits and only accepts
+        # commands (query, stop, budget) whose max_ends_at matches them exactly, so moving it here
+        # made every later stop fail with 422 until the capture ran out on its own.
         recording.status = "Recording"
         recording.state_revision += 1
     recording.save(ignore_permissions=True)

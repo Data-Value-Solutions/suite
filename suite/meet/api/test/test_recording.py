@@ -1277,6 +1277,8 @@ class IntegrationTestRecordingApi(IntegrationTestCase):
         )
         self.assertEqual(recording.capture_started_at, recording.started_at)
         self.assertEqual(recording.recorder_event_sequence, 5)
+        # The recorder matches every later command (query, stop) against the limits it reserved.
+        self.assertEqual(_limits(recording), client.reserve.call_args.kwargs["limits"])
 
     def test_duplicate_interruption_callback_does_not_advance_state(self):
         started = start(self.room.name, str(uuid.uuid4()))
